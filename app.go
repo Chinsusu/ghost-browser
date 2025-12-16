@@ -12,7 +12,7 @@ import (
 	"github.com/user/ghost-browser/internal/app"
 )
 
-//go:embed all:../../frontend/dist
+//go:embed all:frontend/dist
 var assets embed.FS
 
 func main() {
