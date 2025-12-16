@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ghost Browser - API Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #fff;
+        }
+        .container {
+            background: #2a2a2a;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        button {
+            background: #6366f1;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #5855eb;
+        }
+        .success {
+            background: #059669;
+        }
+        .error {
+            background: #dc2626;
+        }
+        pre {
+            background: #1a1a1a;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+        .status {
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        .status.ok {
+            background: #065f46;
+            border: 1px solid #059669;
+        }
+        .status.error {
+            background: #7f1d1d;
+            border: 1px solid #dc2626;
+        }
+    </style>
+</head>
+<body>
+    <h1>🎭 Ghost Browser - API Test Interface</h1>
+    
+    <div class="container">
+        <h2>🔧 API Health Check</h2>
+        <button onclick="checkHealth()">Check API Health</button>
+        <div id="health-status"></div>
+    </div>
+
+    <div class="container">
+        <h2>👤 Profile Management</h2>
+        <button onclick="loadProfiles()">Load Profiles</button>
+        <button onclick="createProfile()" class="success">Create Random Profile</button>
+        <div id="profiles-status"></div>
+        <pre id="profiles-data"></pre>
+    </div>
+
+    <div class="container">
+        <h2>🌐 Proxy Management</h2>
+        <button onclick="loadProxies()">Load Proxies</button>
+        <div id="proxies-status"></div>
+        <pre id="proxies-data"></pre>
+    </div>
+
+    <script>
+        async function checkHealth() {
+            try {
+                const response = await fetch('/api/health');
+                const data = await response.json();
+                document.getElementById('health-status').innerHTML = 
+                    `<div class="status ok">✅ ${data.message}</div>`;
+            } catch (error) {
+                document.getElementById('health-status').innerHTML = 
+                    `<div class="status error">❌ API Error: ${error.message}</div>`;
+            }
+        }
+
+        async function loadProfiles() {
+            try {
+                const response = await fetch('/api/profiles');
+                const data = await response.json();
+                document.getElementById('profiles-status').innerHTML = 
+                    `<div class="status ok">✅ Loaded ${data.profiles.length} profiles</div>`;
+                document.getElementById('profiles-data').textContent = 
+                    JSON.stringify(data, null, 2);
+            } catch (error) {
+                document.getElementById('profiles-status').innerHTML = 
+                    `<div class="status error">❌ Error: ${error.message}</div>`;
+            }
+        }
+
+        async function createProfile() {
+            try {
+                const response = await fetch('/api/profiles', { method: 'POST' });
+                const data = await response.json();
+                document.getElementById('profiles-status').innerHTML = 
+                    `<div class="status ok">✅ Created profile: ${data.name}</div>`;
+                loadProfiles(); // Refresh the list
+            } catch (error) {
+                document.getElementById('profiles-status').innerHTML = 
+                    `<div class="status error">❌ Error: ${error.message}</div>`;
+            }
+        }
+
+        async function loadProxies() {
+            try {
+                const response = await fetch('/api/proxies');
+                const data = await response.json();
+                document.getElementById('proxies-status').innerHTML = 
+                    `<div class="status ok">✅ Loaded ${data.proxies.length} proxies</div>`;
+                document.getElementById('proxies-data').textContent = 
+                    JSON.stringify(data, null, 2);
+            } catch (error) {
+                document.getElementById('proxies-status').innerHTML = 
+                    `<div class="status error">❌ Error: ${error.message}</div>`;
+            }
+        }
+
+        // Auto-check health on page load
+        window.onload = function() {
+            checkHealth();
+            loadProfiles();
+            loadProxies();
+        };
+    </script>
+</body>
+</html>
