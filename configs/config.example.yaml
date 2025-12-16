@@ -1,0 +1,36 @@
+# Ghost Browser Configuration
+# Copy this to config.yaml and customize
+
+app:
+  name: "Ghost Browser"
+  version: "1.0.0"
+
+browser:
+  # Leave empty to auto-detect Edge
+  executable_path: ""
+  
+  # Default launch args
+  args:
+    - "--disable-blink-features=AutomationControlled"
+    - "--disable-infobars"
+    - "--no-first-run"
+    - "--no-default-browser-check"
+
+ai:
+  # Ollama configuration
+  ollama_url: "http://localhost:11434"
+  model: "llama3.2"
+  
+  # Max conversation history to keep
+  max_history: 50
+
+database:
+  # Database file (stored in AppData/GhostBrowser)
+  filename: "ghost-browser.db"
+
+proxy:
+  # Default check timeout in seconds
+  check_timeout: 10
+  
+  # Check URL
+  check_url: "https://api.ipify.org?format=json"
