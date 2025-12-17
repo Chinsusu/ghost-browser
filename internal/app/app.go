@@ -42,6 +42,11 @@ func (a *App) Startup(ctx context.Context) {
 	a.browserManager = browser.NewManager(a.profileManager, a.proxyManager)
 	a.aiEngine = ai.NewEngine(db)
 
+	// Ensure at least one default profile exists
+	if err := a.ensureDefaultProfile(); err != nil {
+		log.Printf("Warning: Failed to create default profile: %v", err)
+	}
+
 	log.Println("Ghost Browser started successfully")
 }
 
@@ -157,4 +162,30 @@ func (a *App) GetSchedule(profileID string) (*ai.Schedule, error) {
 
 func (a *App) UpdateSchedule(profileID string, s *ai.Schedule) error {
 	return a.aiEngine.UpdateSchedule(profileID, s)
+}
+
+// ==================== Internal Methods ====================
+
+func (a *App) ensureDefaultProfile() error {
+	// Check if any profiles exist
+	profiles, err := a.profileManager.GetAll()
+	if err != nil {
+		return err
+	}
+
+	// If no profiles exist, create a default one
+	if len(profiles) == 0 {
+		log.Println("No profiles found, creating default profile...")
+		_, err := a.profileManager.Create("Default Profile", &profile.CreateOptions{
+			OS:      "windows",
+			Browser: "edge",
+			Notes:   "Auto-generated default profile with fingerprint spoofing",
+		})
+		if err != nil {
+			return err
+		}
+		log.Println("✅ Default profile created successfully")
+	}
+
+	return nil
 }
