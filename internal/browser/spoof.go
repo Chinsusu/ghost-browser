@@ -11,26 +11,36 @@ import (
 
 func generateSpoofScript(fp *fingerprint.Fingerprint) string {
 	return fmt.Sprintf(`
-// Ghost Browser Fingerprint Spoofing Script - Startup Injection
-// This script runs BEFORE any page loads via Edge --user-script parameter
+// Ghost Browser ChromeDP Fingerprint Spoofing Script
+// This script runs BEFORE page load via page.AddScriptToEvaluateOnNewDocument
 (function() {
 	'use strict';
 	
-	console.log('[Ghost Browser] STARTUP fingerprint spoofing initializing...');
+	console.log('[Ghost Browser] ChromeDP fingerprint spoofing initializing...');
 	
 	// ========== Navigator Spoofing ==========
 	// CRITICAL: Must happen before page reads these values
+	Object.defineProperty(Navigator.prototype, 'hardwareConcurrency', {
+		get: function() { return %d; },
+		configurable: true
+	});
+	
+	Object.defineProperty(Navigator.prototype, 'deviceMemory', {
+		get: function() { return %d; },
+		configurable: true
+	});
+	
+	Object.defineProperty(Navigator.prototype, 'platform', {
+		get: function() { return '%s'; },
+		configurable: true
+	});
+	
 	Object.defineProperty(Navigator.prototype, 'userAgent', {
 		get: function() { return '%s'; },
 		configurable: true
 	});
 	
 	Object.defineProperty(Navigator.prototype, 'appVersion', {
-		get: function() { return '%s'; },
-		configurable: true
-	});
-	
-	Object.defineProperty(Navigator.prototype, 'platform', {
 		get: function() { return '%s'; },
 		configurable: true
 	});
@@ -42,16 +52,6 @@ func generateSpoofScript(fp *fingerprint.Fingerprint) string {
 	
 	Object.defineProperty(Navigator.prototype, 'language', {
 		get: function() { return '%s'; },
-		configurable: true
-	});
-	
-	Object.defineProperty(Navigator.prototype, 'hardwareConcurrency', {
-		get: function() { return %d; },
-		configurable: true
-	});
-	
-	Object.defineProperty(Navigator.prototype, 'deviceMemory', {
-		get: function() { return %d; },
 		configurable: true
 	});
 	
@@ -210,17 +210,17 @@ func generateSpoofScript(fp *fingerprint.Fingerprint) string {
 	console.log('[Ghost Browser] ✅ Navigator spoofed (hardwareConcurrency: %d, deviceMemory: %d)');
 	console.log('[Ghost Browser] ✅ Screen spoofed (%dx%d)');
 	console.log('[Ghost Browser] ✅ WebGL spoofed (%s)');
-	console.log('[Ghost Browser] Fingerprint spoofing active - STARTUP injection');
+	console.log('[Ghost Browser] Fingerprint spoofing active - ChromeDP pre-load injection');
 	
 })();
 `, 
-		fp.Navigator.UserAgent,
-		fp.Navigator.AppVersion,
-		fp.Navigator.Platform,
-		fp.Navigator.Vendor,
-		fp.Navigator.Language,
 		fp.Navigator.HardwareConcurrency,
 		fp.Navigator.DeviceMemory,
+		fp.Navigator.Platform,
+		fp.Navigator.UserAgent,
+		fp.Navigator.AppVersion,
+		fp.Navigator.Vendor,
+		fp.Navigator.Language,
 		fp.Navigator.MaxTouchPoints,
 		fp.Navigator.CookieEnabled,
 		fp.Screen.Width,

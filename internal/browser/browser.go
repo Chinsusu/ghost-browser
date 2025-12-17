@@ -1,6 +1,7 @@
 package browser
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -8,14 +9,16 @@ import (
 	"runtime"
 	"sync"
 
+	"github.com/chromedp/cdproto/page"
+	"github.com/chromedp/chromedp"
 	"github.com/user/ghost-browser/internal/profile"
 	"github.com/user/ghost-browser/internal/proxy"
 )
 
 type Instance struct {
 	ProfileID string
-	Process   *exec.Cmd
-	ScriptPath string
+	Context   context.Context
+	Cancel    context.CancelFunc
 }
 
 type Manager struct {
@@ -55,44 +58,59 @@ func (m *Manager) Launch(profileID string) error {
 	userDataDir := filepath.Join(p.DataDir, "EdgeData")
 	os.MkdirAll(userDataDir, 0755)
 
-	// Create fingerprint spoofing script
-	scriptPath, err := createSpoofingScript(p, userDataDir)
-	if err != nil {
-		return fmt.Errorf("failed to create spoofing script: %w", err)
-	}
-
-	// Build Edge launch arguments
-	args := []string{
-		"--user-data-dir=" + userDataDir,
-		"--no-first-run",
-		"--no-default-browser-check",
-		"--disable-infobars",
-		"--disable-blink-features=AutomationControlled",
-		"--disable-web-security",
-		"--allow-running-insecure-content",
-		"--user-script=" + scriptPath,
-		"about:blank",
-	}
+	// Setup ChromeDP options
+	opts := append(chromedp.DefaultExecAllocatorOptions[:],
+		chromedp.ExecPath(edgePath),
+		chromedp.UserDataDir(userDataDir),
+		chromedp.Flag("headless", false),
+		chromedp.Flag("disable-blink-features", "AutomationControlled"),
+		chromedp.Flag("disable-infobars", true),
+		chromedp.Flag("no-first-run", true),
+		chromedp.Flag("no-default-browser-check", true),
+		chromedp.WindowSize(1920, 1080),
+	)
 
 	// Add proxy if configured
 	if p.ProxyID != nil {
 		if proxyConfig, err := m.proxyManager.GetByID(*p.ProxyID); err == nil {
-			args = append(args, "--proxy-server="+proxyConfig.ToURL())
+			opts = append(opts, chromedp.Flag("proxy-server", proxyConfig.ToURL()))
 		}
 	}
 
-	// Launch Edge process
-	cmd := exec.Command(edgePath, args...)
-	err = cmd.Start()
+	// Create ChromeDP context
+	allocCtx, allocCancel := chromedp.NewExecAllocator(context.Background(), opts...)
+	ctx, cancel := chromedp.NewContext(allocCtx)
+
+	// Generate spoofing script
+	spoofScript := generateSpoofScript(p.Fingerprint)
+
+	// Launch browser with pre-load script injection
+	err = chromedp.Run(ctx,
+		// CRITICAL: Add script BEFORE any navigation
+		chromedp.ActionFunc(func(ctx context.Context) error {
+			_, err := page.AddScriptToEvaluateOnNewDocument(spoofScript).Do(ctx)
+			return err
+		}),
+		// Navigate to about:blank to initialize
+		chromedp.Navigate("about:blank"),
+	)
+
 	if err != nil {
-		os.Remove(scriptPath) // Cleanup script on failure
-		return fmt.Errorf("failed to launch Edge: %w", err)
+		cancel()
+		allocCancel()
+		return fmt.Errorf("failed to launch browser with ChromeDP: %w", err)
+	}
+
+	// Store instance with combined cancel function
+	combinedCancel := func() {
+		cancel()
+		allocCancel()
 	}
 
 	m.instances[profileID] = &Instance{
-		ProfileID:  profileID,
-		Process:    cmd,
-		ScriptPath: scriptPath,
+		ProfileID: profileID,
+		Context:   ctx,
+		Cancel:    combinedCancel,
 	}
 
 	m.profileManager.UpdateLastUsed(profileID)
@@ -108,14 +126,9 @@ func (m *Manager) Close(profileID string) error {
 		return fmt.Errorf("no browser running for profile %s", profileID)
 	}
 
-	// Kill Edge process
-	if instance.Process != nil {
-		instance.Process.Process.Kill()
-	}
-
-	// Cleanup script file
-	if instance.ScriptPath != "" {
-		os.Remove(instance.ScriptPath)
+	// Cancel ChromeDP context
+	if instance.Cancel != nil {
+		instance.Cancel()
 	}
 
 	delete(m.instances, profileID)
@@ -127,16 +140,10 @@ func (m *Manager) CloseAll() {
 	defer m.mu.Unlock()
 
 	for id, instance := range m.instances {
-		// Kill Edge process
-		if instance.Process != nil {
-			instance.Process.Process.Kill()
+		// Cancel ChromeDP context
+		if instance.Cancel != nil {
+			instance.Cancel()
 		}
-
-		// Cleanup script file
-		if instance.ScriptPath != "" {
-			os.Remove(instance.ScriptPath)
-		}
-
 		delete(m.instances, id)
 	}
 }
@@ -183,10 +190,15 @@ func findEdgePath() (string, error) {
 	return "", fmt.Errorf("Edge browser not found")
 }
 
-// createSpoofingScript creates the fingerprint spoofing JavaScript file
-func createSpoofingScript(p *profile.Profile, userDataDir string) (string, error) {
-	script := generateSpoofScript(p.Fingerprint)
-	scriptPath := filepath.Join(userDataDir, "ghost-spoof.js")
-	err := os.WriteFile(scriptPath, []byte(script), 0644)
-	return scriptPath, err
+// NavigateToURL navigates the browser to a specific URL
+func (m *Manager) NavigateToURL(profileID, url string) error {
+	m.mu.RLock()
+	instance, exists := m.instances[profileID]
+	m.mu.RUnlock()
+
+	if !exists {
+		return fmt.Errorf("no browser running for profile %s", profileID)
+	}
+
+	return chromedp.Run(instance.Context, chromedp.Navigate(url))
 }
