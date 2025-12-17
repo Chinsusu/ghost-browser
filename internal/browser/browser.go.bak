@@ -8,10 +8,8 @@ import (
 	"path/filepath"
 	"runtime"
 	"sync"
-	"time"
 
 	"github.com/chromedp/cdproto/page"
-	"github.com/chromedp/cdproto/target"
 	"github.com/chromedp/chromedp"
 
 	"github.com/user/ghost-browser/internal/fingerprint"
@@ -21,11 +19,9 @@ import (
 
 // Instance represents a running browser instance
 type Instance struct {
-	ProfileID   string
-	Ctx         context.Context
-	Cancel      context.CancelFunc
+	ProfileID  string
+	Cancel     context.CancelFunc
 	AllocCancel context.CancelFunc
-	Fingerprint *fingerprint.Fingerprint
 }
 
 // Manager manages browser instances
@@ -70,44 +66,13 @@ func (m *Manager) Launch(profileID string) error {
 	// Get fingerprint from profile
 	fp := p.Fingerprint
 	if fp == nil {
+		// Generate new fingerprint if not exists
 		gen := fingerprint.NewGenerator()
 		fp = gen.Generate(nil)
-		// Save fingerprint to profile
-		p.Fingerprint = fp
-		m.profileManager.Update(p)
 	}
-
-	// Generate spoof script BEFORE creating browser
-	spoofScript := GenerateSpoofScript(fp)
 
 	// Build Chrome options
-	opts := []chromedp.ExecAllocatorOption{
-		chromedp.ExecPath(edgePath),
-		chromedp.UserDataDir(p.DataDir),
-		chromedp.Flag("headless", false),
-
-		// Anti-detection
-		chromedp.Flag("disable-blink-features", "AutomationControlled"),
-		chromedp.Flag("disable-infobars", true),
-		chromedp.Flag("no-first-run", true),
-		chromedp.Flag("no-default-browser-check", true),
-		chromedp.Flag("disable-extensions", true),
-		chromedp.Flag("disable-default-apps", true),
-		chromedp.Flag("disable-popup-blocking", true),
-
-		// WebRTC protection
-		chromedp.Flag("disable-webrtc", true),
-		chromedp.Flag("enforce-webrtc-ip-permission-check", true),
-		chromedp.Flag("webrtc-ip-handling-policy", "disable_non_proxied_udp"),
-		chromedp.Flag("disable-features", "WebRtcHideLocalIpsWithMdns,WebRTC,TranslateUI"),
-
-		// Window size matching fingerprint
-		chromedp.WindowSize(fp.Screen.Width, fp.Screen.Height),
-
-		// Disable automation flags
-		chromedp.Flag("enable-automation", false),
-		chromedp.Flag("disable-ipc-flooding-protection", true),
-	}
+	opts := buildChromeOptions(edgePath, p.DataDir, fp)
 
 	// Add proxy if configured
 	if p.ProxyID != nil {
@@ -117,55 +82,21 @@ func (m *Manager) Launch(profileID string) error {
 		}
 	}
 
-	// Create allocator context
+	// Create contexts
 	allocCtx, allocCancel := chromedp.NewExecAllocator(context.Background(), opts...)
-
-	// Create browser context with logging disabled for production
 	ctx, cancel := chromedp.NewContext(allocCtx)
 
-	// CRITICAL: Set up script injection for ALL new targets/pages
-	chromedp.ListenTarget(ctx, func(ev interface{}) {
-		switch ev := ev.(type) {
-		case *target.EventTargetCreated:
-			// New tab/window created - inject script
-			go func() {
-				tCtx, tCancel := chromedp.NewContext(ctx, chromedp.WithTargetID(ev.TargetInfo.TargetID))
-				defer tCancel()
-				
-				// Small delay to ensure target is ready
-				time.Sleep(50 * time.Millisecond)
-				
-				chromedp.Run(tCtx,
-					chromedp.ActionFunc(func(ctx context.Context) error {
-						_, err := page.AddScriptToEvaluateOnNewDocument(spoofScript).Do(ctx)
-						return err
-					}),
-				)
-			}()
-		}
-	})
+	// Generate spoof script
+	spoofScript := GenerateSpoofScript(fp)
 
-	// Launch browser and inject script
+	// Launch browser
 	err = chromedp.Run(ctx,
-		// Add script to evaluate on new document - THIS IS KEY
 		chromedp.ActionFunc(func(ctx context.Context) error {
 			_, err := page.AddScriptToEvaluateOnNewDocument(spoofScript).Do(ctx)
 			return err
 		}),
-		
-		// Enable page events
-		page.Enable(),
-		
-		// Small delay to ensure script is registered
-		chromedp.Sleep(100*time.Millisecond),
-		
-		// Navigate to blank page first
 		chromedp.Navigate("about:blank"),
-		
-		// Wait for page to be ready
-		chromedp.WaitReady("body", chromedp.ByQuery),
 	)
-
 	if err != nil {
 		cancel()
 		allocCancel()
@@ -175,37 +106,14 @@ func (m *Manager) Launch(profileID string) error {
 	// Store instance
 	m.instances[profileID] = &Instance{
 		ProfileID:   profileID,
-		Ctx:         ctx,
 		Cancel:      cancel,
 		AllocCancel: allocCancel,
-		Fingerprint: fp,
 	}
 
 	// Update last used
 	m.profileManager.UpdateLastUsed(profileID)
 
 	return nil
-}
-
-// LaunchWithURL launches browser and navigates to URL
-func (m *Manager) LaunchWithURL(profileID, url string) error {
-	err := m.Launch(profileID)
-	if err != nil {
-		return err
-	}
-
-	m.mu.RLock()
-	instance, exists := m.instances[profileID]
-	m.mu.RUnlock()
-
-	if !exists {
-		return fmt.Errorf("instance not found after launch")
-	}
-
-	// Navigate to URL
-	return chromedp.Run(instance.Ctx,
-		chromedp.Navigate(url),
-	)
 }
 
 // Close closes a browser instance
@@ -218,12 +126,7 @@ func (m *Manager) Close(profileID string) error {
 		return fmt.Errorf("no browser running for profile %s", profileID)
 	}
 
-	// Cancel contexts
 	instance.Cancel()
-	
-	// Small delay before canceling allocator
-	time.Sleep(100 * time.Millisecond)
-	
 	instance.AllocCancel()
 	delete(m.instances, profileID)
 
@@ -237,7 +140,6 @@ func (m *Manager) CloseAll() {
 
 	for id, instance := range m.instances {
 		instance.Cancel()
-		time.Sleep(50 * time.Millisecond)
 		instance.AllocCancel()
 		delete(m.instances, id)
 	}
@@ -263,41 +165,41 @@ func (m *Manager) IsRunning(profileID string) bool {
 	return exists
 }
 
-// NavigateTo navigates a running browser to a URL
-func (m *Manager) NavigateTo(profileID, url string) error {
-	m.mu.RLock()
-	instance, exists := m.instances[profileID]
-	m.mu.RUnlock()
+// buildChromeOptions builds chromedp options
+func buildChromeOptions(edgePath, userDataDir string, fp *fingerprint.Fingerprint) []chromedp.ExecAllocatorOption {
+	return []chromedp.ExecAllocatorOption{
+		chromedp.ExecPath(edgePath),
+		chromedp.UserDataDir(userDataDir),
+		chromedp.Flag("headless", false),
 
-	if !exists {
-		return fmt.Errorf("no browser running for profile %s", profileID)
+		// Anti-detection
+		chromedp.Flag("disable-blink-features", "AutomationControlled"),
+		chromedp.Flag("disable-infobars", true),
+		chromedp.Flag("no-first-run", true),
+		chromedp.Flag("no-default-browser-check", true),
+		chromedp.Flag("disable-extensions", true),
+
+		// WebRTC protection
+		chromedp.Flag("disable-webrtc", true),
+		chromedp.Flag("enforce-webrtc-ip-permission-check", true),
+		chromedp.Flag("webrtc-ip-handling-policy", "disable_non_proxied_udp"),
+		chromedp.Flag("disable-features", "WebRtcHideLocalIpsWithMdns,WebRTC"),
+
+		// Window size
+		chromedp.WindowSize(fp.Screen.Width, fp.Screen.Height),
+
+		// Disable GPU for consistency
+		chromedp.Flag("disable-gpu", false),
+		chromedp.Flag("disable-software-rasterizer", true),
 	}
-
-	return chromedp.Run(instance.Ctx,
-		chromedp.Navigate(url),
-	)
-}
-
-// GetFingerprint returns the fingerprint for a running browser
-func (m *Manager) GetFingerprint(profileID string) (*fingerprint.Fingerprint, error) {
-	m.mu.RLock()
-	instance, exists := m.instances[profileID]
-	m.mu.RUnlock()
-
-	if !exists {
-		return nil, fmt.Errorf("no browser running for profile %s", profileID)
-	}
-
-	return instance.Fingerprint, nil
 }
 
 // findEdgePath finds the Edge executable
 func findEdgePath() (string, error) {
 	if runtime.GOOS != "windows" {
-		return "", fmt.Errorf("Windows only - Edge not available")
+		return "", fmt.Errorf("Windows only")
 	}
 
-	// Check common paths
 	paths := []string{
 		filepath.Join(os.Getenv("ProgramFiles(x86)"), "Microsoft", "Edge", "Application", "msedge.exe"),
 		filepath.Join(os.Getenv("ProgramFiles"), "Microsoft", "Edge", "Application", "msedge.exe"),
@@ -310,13 +212,9 @@ func findEdgePath() (string, error) {
 		}
 	}
 
-	// Try PATH
 	if path, err := exec.LookPath("msedge"); err == nil {
 		return path, nil
 	}
-	if path, err := exec.LookPath("msedge.exe"); err == nil {
-		return path, nil
-	}
 
-	return "", fmt.Errorf("Microsoft Edge not found. Please ensure Edge is installed.")
+	return "", fmt.Errorf("Edge not found")
 }

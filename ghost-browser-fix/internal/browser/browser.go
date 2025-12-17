@@ -136,10 +136,7 @@ func (m *Manager) Launch(profileID string) error {
 				time.Sleep(50 * time.Millisecond)
 				
 				chromedp.Run(tCtx,
-					chromedp.ActionFunc(func(ctx context.Context) error {
-						_, err := page.AddScriptToEvaluateOnNewDocument(spoofScript).Do(ctx)
-						return err
-					}),
+					page.AddScriptToEvaluateOnNewDocument(spoofScript),
 				)
 			}()
 		}
@@ -148,10 +145,7 @@ func (m *Manager) Launch(profileID string) error {
 	// Launch browser and inject script
 	err = chromedp.Run(ctx,
 		// Add script to evaluate on new document - THIS IS KEY
-		chromedp.ActionFunc(func(ctx context.Context) error {
-			_, err := page.AddScriptToEvaluateOnNewDocument(spoofScript).Do(ctx)
-			return err
-		}),
+		page.AddScriptToEvaluateOnNewDocument(spoofScript),
 		
 		// Enable page events
 		page.Enable(),
