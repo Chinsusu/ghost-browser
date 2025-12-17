@@ -182,9 +182,9 @@ wails build -o ghost-browser-fixed.exe
 ```
 
 ### Executable Locations
-- **Desktop App**: `build/bin/ghost-browser-fixed.exe` ⭐ **MAIN APP**
-- **API Server**: `ghost-browser-api.exe`
-- **Web Interface**: `ghost-browser-backend.exe`
+- **Desktop App**: `build/bin/ghost-browser-desktop.exe` ⭐ **MAIN GUI APP** (19.1 MB)
+- **API Server**: `ghost-browser-release.exe` (10.2 MB)
+- **Standalone Demo**: `ghost-browser-v4-standalone.exe` (9.9 MB)
 
 ## Key Technical Decisions
 
@@ -276,7 +276,8 @@ wails build -o ghost-browser-fixed.exe
 ## 🚀 **FINAL RELEASE EXECUTABLES**
 
 ### Production Ready Versions
-- **ghost-browser-release.exe** - ⭐ **MAIN RELEASE** (API Server + Web UI)
+- **build/bin/ghost-browser-desktop.exe** - ⭐ **DESKTOP GUI APP** (Native Windows Interface)
+- **ghost-browser-release.exe** - 🌐 **API SERVER** (Web Interface at localhost:8080)
 - **ghost-browser-v4-standalone.exe** - 🧪 **DEMO VERSION** (Direct Browser Launch)
 - **launch-ghost-browser.ps1** - 🎯 **LAUNCHER SCRIPT** (Easy Selection)
 
@@ -286,8 +287,9 @@ wails build -o ghost-browser-fixed.exe
 .\launch-ghost-browser.ps1
 
 # Or run directly:
-.\ghost-browser-release.exe        # API Server at http://localhost:8080
-.\ghost-browser-v4-standalone.exe  # Direct browser with random fingerprint
+.\build\bin\ghost-browser-desktop.exe  # Native Desktop GUI (Recommended)
+.\ghost-browser-release.exe            # API Server at http://localhost:8080
+.\ghost-browser-v4-standalone.exe      # Direct browser with random fingerprint
 ```
 
 ## 🎉 **FINAL ACHIEVEMENT: Ghost Browser v4.0.0**
