@@ -1,6 +1,5 @@
 package fingerprint
 
-// Fingerprint represents a complete browser fingerprint
 type Fingerprint struct {
 	Navigator NavigatorFP `json:"navigator"`
 	Screen    ScreenFP    `json:"screen"`

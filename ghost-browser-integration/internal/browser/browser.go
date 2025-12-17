@@ -12,9 +12,9 @@ import (
 	"github.com/chromedp/cdproto/page"
 	"github.com/chromedp/chromedp"
 
-	"github.com/user/ghost-browser/internal/fingerprint"
-	"github.com/user/ghost-browser/internal/profile"
-	"github.com/user/ghost-browser/internal/proxy"
+	"ghost-browser/internal/fingerprint"
+	"ghost-browser/internal/profile"
+	"ghost-browser/internal/proxy"
 )
 
 // Instance represents a running browser instance
@@ -91,10 +91,7 @@ func (m *Manager) Launch(profileID string) error {
 
 	// Launch browser
 	err = chromedp.Run(ctx,
-		chromedp.ActionFunc(func(ctx context.Context) error {
-			_, err := page.AddScriptToEvaluateOnNewDocument(spoofScript).Do(ctx)
-			return err
-		}),
+		page.AddScriptToEvaluateOnNewDocument(spoofScript),
 		chromedp.Navigate("about:blank"),
 	)
 	if err != nil {

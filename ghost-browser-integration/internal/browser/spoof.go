@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/user/ghost-browser/internal/fingerprint"
+	"ghost-browser/internal/fingerprint"
 )
 
 // GenerateSpoofScript creates the JavaScript injection script
