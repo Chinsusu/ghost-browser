@@ -1,100 +1,131 @@
 package browser
 
 import (
-	"encoding/json"
 	"fmt"
 
-	"github.com/go-rod/rod"
 	"github.com/user/ghost-browser/internal/fingerprint"
-	"github.com/user/ghost-browser/internal/profile"
 )
 
-func injectSpoofingScripts(browser *rod.Browser, p *profile.Profile) {
-	script := generateSpoofScript(p.Fingerprint)
-
-	// Inject on default page
-	pages, _ := browser.Pages()
-	for _, page := range pages {
-		page.MustEvaluate(rod.Eval(script))
-	}
-}
+// generateSpoofScript creates JavaScript code for fingerprint spoofing
+// This script is injected via Edge's --user-script parameter for pre-load execution
 
 func generateSpoofScript(fp *fingerprint.Fingerprint) string {
-	fpJSON, _ := json.Marshal(fp)
-
 	return fmt.Sprintf(`
+// Ghost Browser Fingerprint Spoofing Script - Startup Injection
+// This script runs BEFORE any page loads via Edge --user-script parameter
 (function() {
 	'use strict';
-	const CONFIG = %s;
-
+	
+	console.log('[Ghost Browser] STARTUP fingerprint spoofing initializing...');
+	
 	// ========== Navigator Spoofing ==========
-	const navProps = {
-		userAgent: CONFIG.navigator.userAgent,
-		appVersion: CONFIG.navigator.appVersion,
-		platform: CONFIG.navigator.platform,
-		vendor: CONFIG.navigator.vendor,
-		language: CONFIG.navigator.language,
-		languages: Object.freeze(CONFIG.navigator.languages),
-		hardwareConcurrency: CONFIG.navigator.hardwareConcurrency,
-		deviceMemory: CONFIG.navigator.deviceMemory,
-		maxTouchPoints: CONFIG.navigator.maxTouchPoints,
-		doNotTrack: CONFIG.navigator.doNotTrack,
-		cookieEnabled: CONFIG.navigator.cookieEnabled,
-		webdriver: false,
-	};
-
-	for (const [prop, value] of Object.entries(navProps)) {
-		try {
-			Object.defineProperty(Navigator.prototype, prop, {
-				get: () => value,
-				configurable: true,
-			});
-		} catch (e) {}
-	}
-
-	// ========== Screen Spoofing ==========
-	const screenProps = {
-		width: CONFIG.screen.width,
-		height: CONFIG.screen.height,
-		availWidth: CONFIG.screen.availWidth,
-		availHeight: CONFIG.screen.availHeight,
-		colorDepth: CONFIG.screen.colorDepth,
-		pixelDepth: CONFIG.screen.pixelDepth,
-	};
-
-	for (const [prop, value] of Object.entries(screenProps)) {
-		try {
-			Object.defineProperty(Screen.prototype, prop, {
-				get: () => value,
-				configurable: true,
-			});
-		} catch (e) {}
-	}
-
-	Object.defineProperty(window, 'devicePixelRatio', {
-		get: () => CONFIG.screen.pixelRatio,
-		configurable: true,
+	// CRITICAL: Must happen before page reads these values
+	Object.defineProperty(Navigator.prototype, 'userAgent', {
+		get: function() { return '%s'; },
+		configurable: true
 	});
-
+	
+	Object.defineProperty(Navigator.prototype, 'appVersion', {
+		get: function() { return '%s'; },
+		configurable: true
+	});
+	
+	Object.defineProperty(Navigator.prototype, 'platform', {
+		get: function() { return '%s'; },
+		configurable: true
+	});
+	
+	Object.defineProperty(Navigator.prototype, 'vendor', {
+		get: function() { return '%s'; },
+		configurable: true
+	});
+	
+	Object.defineProperty(Navigator.prototype, 'language', {
+		get: function() { return '%s'; },
+		configurable: true
+	});
+	
+	Object.defineProperty(Navigator.prototype, 'hardwareConcurrency', {
+		get: function() { return %d; },
+		configurable: true
+	});
+	
+	Object.defineProperty(Navigator.prototype, 'deviceMemory', {
+		get: function() { return %d; },
+		configurable: true
+	});
+	
+	Object.defineProperty(Navigator.prototype, 'maxTouchPoints', {
+		get: function() { return %d; },
+		configurable: true
+	});
+	
+	Object.defineProperty(Navigator.prototype, 'webdriver', {
+		get: function() { return false; },
+		configurable: true
+	});
+	
+	Object.defineProperty(Navigator.prototype, 'cookieEnabled', {
+		get: function() { return %t; },
+		configurable: true
+	});
+	
+	// ========== Screen Spoofing ==========
+	Object.defineProperty(Screen.prototype, 'width', {
+		get: function() { return %d; },
+		configurable: true
+	});
+	
+	Object.defineProperty(Screen.prototype, 'height', {
+		get: function() { return %d; },
+		configurable: true
+	});
+	
+	Object.defineProperty(Screen.prototype, 'availWidth', {
+		get: function() { return %d; },
+		configurable: true
+	});
+	
+	Object.defineProperty(Screen.prototype, 'availHeight', {
+		get: function() { return %d; },
+		configurable: true
+	});
+	
+	Object.defineProperty(Screen.prototype, 'colorDepth', {
+		get: function() { return %d; },
+		configurable: true
+	});
+	
+	Object.defineProperty(Screen.prototype, 'pixelDepth', {
+		get: function() { return %d; },
+		configurable: true
+	});
+	
+	Object.defineProperty(window, 'devicePixelRatio', {
+		get: function() { return %f; },
+		configurable: true
+	});
+	
 	// ========== WebGL Spoofing ==========
 	const origGetParam = WebGLRenderingContext.prototype.getParameter;
 	WebGLRenderingContext.prototype.getParameter = function(param) {
-		if (param === 37445) return CONFIG.webgl.unmaskedVendor;
-		if (param === 37446) return CONFIG.webgl.unmaskedRenderer;
+		if (param === 37445) return '%s'; // UNMASKED_VENDOR_WEBGL
+		if (param === 37446) return '%s'; // UNMASKED_RENDERER_WEBGL
 		return origGetParam.call(this, param);
 	};
-
+	
+	// WebGL2 spoofing
 	if (typeof WebGL2RenderingContext !== 'undefined') {
 		const origGetParam2 = WebGL2RenderingContext.prototype.getParameter;
 		WebGL2RenderingContext.prototype.getParameter = function(param) {
-			if (param === 37445) return CONFIG.webgl.unmaskedVendor;
-			if (param === 37446) return CONFIG.webgl.unmaskedRenderer;
+			if (param === 37445) return '%s';
+			if (param === 37446) return '%s';
 			return origGetParam2.call(this, param);
 		};
 	}
-
+	
 	// ========== Canvas Noise ==========
-	const noise = CONFIG.canvas.noise || 0.0001;
+	const noise = %f;
 	const origToDataURL = HTMLCanvasElement.prototype.toDataURL;
 	HTMLCanvasElement.prototype.toDataURL = function(type, quality) {
 		if (this.width > 0 && this.height > 0) {
@@ -112,10 +143,10 @@ func generateSpoofScript(fp *fingerprint.Fingerprint) string {
 		}
 		return origToDataURL.call(this, type, quality);
 	};
-
+	
 	// ========== Audio Noise ==========
 	if (typeof AudioContext !== 'undefined') {
-		const audioNoise = CONFIG.audio.noise || 0.0001;
+		const audioNoise = %f;
 		const origCreateAnalyser = AudioContext.prototype.createAnalyser;
 		AudioContext.prototype.createAnalyser = function() {
 			const analyser = origCreateAnalyser.call(this);
@@ -129,15 +160,15 @@ func generateSpoofScript(fp *fingerprint.Fingerprint) string {
 			return analyser;
 		};
 	}
-
+	
 	// ========== Timezone Spoofing ==========
-	const targetTZ = CONFIG.timezone.timezone;
-	const targetOffset = CONFIG.timezone.timezoneOffset;
-
+	const targetTZ = '%s';
+	const targetOffset = %d;
+	
 	Date.prototype.getTimezoneOffset = function() {
 		return targetOffset;
 	};
-
+	
 	const origDateTimeFormat = Intl.DateTimeFormat;
 	Intl.DateTimeFormat = function(locales, options) {
 		options = options || {};
@@ -145,9 +176,9 @@ func generateSpoofScript(fp *fingerprint.Fingerprint) string {
 		return new origDateTimeFormat(locales, options);
 	};
 	Intl.DateTimeFormat.prototype = origDateTimeFormat.prototype;
-
+	
 	// ========== WebRTC Protection ==========
-	if (CONFIG.network.webRTCPolicy === 'disable') {
+	if ('%s' === 'disable') {
 		['RTCPeerConnection', 'webkitRTCPeerConnection', 'mozRTCPeerConnection'].forEach(name => {
 			try {
 				Object.defineProperty(window, name, {
@@ -157,16 +188,16 @@ func generateSpoofScript(fp *fingerprint.Fingerprint) string {
 				});
 			} catch (e) {}
 		});
-
+		
 		if (navigator.mediaDevices) {
 			navigator.mediaDevices.getUserMedia = () => Promise.reject(new Error('Permission denied'));
 			navigator.mediaDevices.enumerateDevices = () => Promise.resolve([]);
 		}
 	}
-
+	
 	// ========== Remove Automation Flags ==========
 	try { delete Object.getPrototypeOf(navigator).webdriver; } catch (e) {}
-
+	
 	const autoProps = [
 		'__webdriver_evaluate', '__selenium_evaluate', '__webdriver_script_function',
 		'__driver_evaluate', '_selenium', '_Selenium_IDE_Recorder', 'callSelenium',
@@ -175,29 +206,43 @@ func generateSpoofScript(fp *fingerprint.Fingerprint) string {
 	autoProps.forEach(prop => {
 		try { if (window[prop]) delete window[prop]; } catch (e) {}
 	});
-
-	// ========== Plugins Spoofing ==========
-	const fakePlugins = CONFIG.misc.plugins.map(p => ({
-		name: p.name,
-		filename: p.filename,
-		description: p.description,
-		length: 1,
-	}));
-
-	Object.defineProperty(Navigator.prototype, 'plugins', {
-		get: () => {
-			const arr = Object.create(PluginArray.prototype);
-			fakePlugins.forEach((p, i) => arr[i] = p);
-			arr.length = fakePlugins.length;
-			arr.item = i => fakePlugins[i] || null;
-			arr.namedItem = name => fakePlugins.find(p => p.name === name) || null;
-			arr.refresh = () => {};
-			return arr;
-		},
-		configurable: true,
-	});
-
-	console.log('[Ghost Browser] Fingerprint spoofing active');
+	
+	console.log('[Ghost Browser] ✅ Navigator spoofed (hardwareConcurrency: %d, deviceMemory: %d)');
+	console.log('[Ghost Browser] ✅ Screen spoofed (%dx%d)');
+	console.log('[Ghost Browser] ✅ WebGL spoofed (%s)');
+	console.log('[Ghost Browser] Fingerprint spoofing active - STARTUP injection');
+	
 })();
-`, string(fpJSON))
+`, 
+		fp.Navigator.UserAgent,
+		fp.Navigator.AppVersion,
+		fp.Navigator.Platform,
+		fp.Navigator.Vendor,
+		fp.Navigator.Language,
+		fp.Navigator.HardwareConcurrency,
+		fp.Navigator.DeviceMemory,
+		fp.Navigator.MaxTouchPoints,
+		fp.Navigator.CookieEnabled,
+		fp.Screen.Width,
+		fp.Screen.Height,
+		fp.Screen.AvailWidth,
+		fp.Screen.AvailHeight,
+		fp.Screen.ColorDepth,
+		fp.Screen.PixelDepth,
+		fp.Screen.PixelRatio,
+		fp.WebGL.Vendor,
+		fp.WebGL.Renderer,
+		fp.WebGL.Vendor,
+		fp.WebGL.Renderer,
+		fp.Canvas.Noise,
+		fp.Audio.Noise,
+		fp.Timezone.Timezone,
+		fp.Timezone.TimezoneOffset,
+		fp.Network.WebRTCPolicy,
+		fp.Navigator.HardwareConcurrency,
+		fp.Navigator.DeviceMemory,
+		fp.Screen.Width,
+		fp.Screen.Height,
+		fp.WebGL.Vendor,
+	)
 }

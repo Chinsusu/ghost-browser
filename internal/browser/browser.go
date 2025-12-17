@@ -8,17 +8,14 @@ import (
 	"runtime"
 	"sync"
 
-	"github.com/go-rod/rod"
-	"github.com/go-rod/rod/lib/launcher"
-
 	"github.com/user/ghost-browser/internal/profile"
 	"github.com/user/ghost-browser/internal/proxy"
 )
 
 type Instance struct {
 	ProfileID string
-	Browser   *rod.Browser
-	Launcher  *launcher.Launcher
+	Process   *exec.Cmd
+	ScriptPath string
 }
 
 type Manager struct {
@@ -54,31 +51,48 @@ func (m *Manager) Launch(profileID string) error {
 		return fmt.Errorf("failed to find Edge: %w", err)
 	}
 
-	l := launcher.New().
-		Bin(edgePath).
-		UserDataDir(p.DataDir).
-		Headless(false).
-		Set("disable-blink-features", "AutomationControlled").
-		Set("disable-infobars").
-		Set("no-first-run").
-		Set("no-default-browser-check")
+	// Create user data directory
+	userDataDir := filepath.Join(p.DataDir, "EdgeData")
+	os.MkdirAll(userDataDir, 0755)
 
+	// Create fingerprint spoofing script
+	scriptPath, err := createSpoofingScript(p, userDataDir)
+	if err != nil {
+		return fmt.Errorf("failed to create spoofing script: %w", err)
+	}
+
+	// Build Edge launch arguments
+	args := []string{
+		"--user-data-dir=" + userDataDir,
+		"--no-first-run",
+		"--no-default-browser-check",
+		"--disable-infobars",
+		"--disable-blink-features=AutomationControlled",
+		"--disable-web-security",
+		"--allow-running-insecure-content",
+		"--user-script=" + scriptPath,
+		"about:blank",
+	}
+
+	// Add proxy if configured
 	if p.ProxyID != nil {
 		if proxyConfig, err := m.proxyManager.GetByID(*p.ProxyID); err == nil {
-			l.Set("proxy-server", proxyConfig.ToURL())
+			args = append(args, "--proxy-server="+proxyConfig.ToURL())
 		}
 	}
 
-	controlURL := l.MustLaunch()
-	browser := rod.New().ControlURL(controlURL).MustConnect()
-
-	// Inject spoofing scripts
-	injectSpoofingScripts(browser, p)
+	// Launch Edge process
+	cmd := exec.Command(edgePath, args...)
+	err = cmd.Start()
+	if err != nil {
+		os.Remove(scriptPath) // Cleanup script on failure
+		return fmt.Errorf("failed to launch Edge: %w", err)
+	}
 
 	m.instances[profileID] = &Instance{
-		ProfileID: profileID,
-		Browser:   browser,
-		Launcher:  l,
+		ProfileID:  profileID,
+		Process:    cmd,
+		ScriptPath: scriptPath,
 	}
 
 	m.profileManager.UpdateLastUsed(profileID)
@@ -94,7 +108,16 @@ func (m *Manager) Close(profileID string) error {
 		return fmt.Errorf("no browser running for profile %s", profileID)
 	}
 
-	instance.Browser.MustClose()
+	// Kill Edge process
+	if instance.Process != nil {
+		instance.Process.Process.Kill()
+	}
+
+	// Cleanup script file
+	if instance.ScriptPath != "" {
+		os.Remove(instance.ScriptPath)
+	}
+
 	delete(m.instances, profileID)
 	return nil
 }
@@ -104,7 +127,16 @@ func (m *Manager) CloseAll() {
 	defer m.mu.Unlock()
 
 	for id, instance := range m.instances {
-		instance.Browser.MustClose()
+		// Kill Edge process
+		if instance.Process != nil {
+			instance.Process.Process.Kill()
+		}
+
+		// Cleanup script file
+		if instance.ScriptPath != "" {
+			os.Remove(instance.ScriptPath)
+		}
+
 		delete(m.instances, id)
 	}
 }
@@ -149,4 +181,12 @@ func findEdgePath() (string, error) {
 	}
 
 	return "", fmt.Errorf("Edge browser not found")
+}
+
+// createSpoofingScript creates the fingerprint spoofing JavaScript file
+func createSpoofingScript(p *profile.Profile, userDataDir string) (string, error) {
+	script := generateSpoofScript(p.Fingerprint)
+	scriptPath := filepath.Join(userDataDir, "ghost-spoof.js")
+	err := os.WriteFile(scriptPath, []byte(script), 0644)
+	return scriptPath, err
 }
