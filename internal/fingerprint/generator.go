@@ -1,13 +1,14 @@
 package fingerprint
 
 import (
+	"crypto/rand"
 	"fmt"
-	"math/rand"
+	mathrand "math/rand"
 	"time"
 )
 
 type Generator struct {
-	rng *rand.Rand
+	rng *mathrand.Rand
 }
 
 type GenerateOptions struct {
@@ -16,7 +17,20 @@ type GenerateOptions struct {
 }
 
 func NewGenerator() *Generator {
-	return &Generator{rng: rand.New(rand.NewSource(time.Now().UnixNano()))}
+	// Use crypto/rand for truly unique seed
+	var seedBytes [8]byte
+	rand.Read(seedBytes[:])
+	
+	// Convert to int64 seed
+	seed := int64(0)
+	for i, b := range seedBytes {
+		seed |= int64(b) << (i * 8)
+	}
+	
+	// Combine with nanosecond timestamp for extra entropy
+	seed ^= time.Now().UnixNano()
+	
+	return &Generator{rng: mathrand.New(mathrand.NewSource(seed))}
 }
 
 // Generate creates a random realistic fingerprint
