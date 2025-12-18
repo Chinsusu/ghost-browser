@@ -2,12 +2,19 @@
   "$schema": "https://wails.io/schemas/config.v2.json",
   "name": "ghost-browser",
   "outputfilename": "GhostBrowser",
+  "version": "1.0.1",
   "frontend:install": "npm install",
   "frontend:build": "npm run build",
   "frontend:dev:watcher": "npm run dev",
   "frontend:dev:serverUrl": "auto",
   "author": {
-    "name": "Your Name",
-    "email": "your@email.com"
+    "name": "Ghost Browser Team",
+    "email": "support@ghostbrowser.com"
+  },
+  "info": {
+    "productName": "Ghost Browser",
+    "productVersion": "1.0.1",
+    "copyright": "© 2025 Ghost Browser. All rights reserved.",
+    "comments": "Advanced Anti-Detection Browser with Fingerprint Spoofing"
   }
 }

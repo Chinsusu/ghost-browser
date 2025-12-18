@@ -32,7 +32,7 @@ switch ($choice) {
         Write-Host "✅ Features: Native GUI, ChromeDP Integration" -ForegroundColor Green
         Write-Host "🎯 Interface: Built-in Windows application" -ForegroundColor Cyan
         Write-Host ""
-        .\build\bin\ghost-browser-desktop-ultimate.exe
+        .\build\bin\GhostBrowser-v1.0.1.exe
     }
     "2" {
         Write-Host ""
@@ -41,7 +41,7 @@ switch ($choice) {
         Write-Host "🌐 Access: http://localhost:8080" -ForegroundColor Cyan
         Write-Host "Press Ctrl+C to stop" -ForegroundColor Gray
         Write-Host ""
-        .\ghost-browser-api-ultimate.exe
+        .\GhostBrowser-API-v1.0.1.exe
     }
     "3" {
         Write-Host ""
@@ -56,6 +56,6 @@ switch ($choice) {
         Write-Host ""
         Write-Host "❌ Invalid choice. Starting Desktop App (default)..." -ForegroundColor Red
         Write-Host ""
-        .\build\bin\ghost-browser-desktop-ultimate.exe
+        .\build\bin\GhostBrowser-v1.0.1.exe
     }
 }

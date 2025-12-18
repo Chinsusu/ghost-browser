@@ -211,8 +211,8 @@ wails build -o ghost-browser-fixed.exe
 ```
 
 ### Executable Locations
-- **Desktop App**: `build/bin/ghost-browser-desktop-ultimate.exe` ⭐ **MAIN GUI APP** (19.2 MB)
-- **API Server**: `ghost-browser-api-ultimate.exe` (10.2 MB)
+- **Desktop App**: `build/bin/GhostBrowser-v1.0.1.exe` ⭐ **MAIN GUI APP** (19.2 MB)
+- **API Server**: `GhostBrowser-API-v1.0.1.exe` (10.2 MB)
 - **Standalone Demo**: `ghost-browser-v4-standalone.exe` (9.9 MB)
 
 ## Key Technical Decisions
@@ -278,8 +278,8 @@ wails build -o ghost-browser-fixed.exe
 **Project Status**: ✅ **ENTERPRISE-GRADE PRODUCTION READY**
 **Fingerprint Spoofing**: ✅ **100% SUCCESS RATE - CREEPJS VERIFIED**
 **Antivirus Issues**: ✅ **COMPLETELY RESOLVED**
-**Last Updated**: December 17, 2025
-**Version**: 5.0.0 (Final Release - ChromeDP Integration Complete)
+**Last Updated**: December 18, 2025
+**Version**: 1.0.1 (Production Release - Triple hardwareConcurrency Fix)
 
 ## Final Build Results ✅
 
@@ -305,8 +305,8 @@ wails build -o ghost-browser-fixed.exe
 ## 🚀 **FINAL RELEASE EXECUTABLES**
 
 ### Production Ready Versions
-- **build/bin/ghost-browser-desktop-ultimate.exe** - ⭐ **DESKTOP GUI APP** (Ultimate Build + Triple hardwareConcurrency Fix)
-- **ghost-browser-api-ultimate.exe** - 🌐 **API SERVER** (Ultimate Build + Triple hardwareConcurrency Fix)
+- **build/bin/GhostBrowser-v1.0.1.exe** - ⭐ **DESKTOP GUI APP** (v1.0.1 - Production Release)
+- **GhostBrowser-API-v1.0.1.exe** - 🌐 **API SERVER** (v1.0.1 - Production Release)
 - **ghost-browser-v4-standalone.exe** - 🧪 **DEMO VERSION** (Direct Browser Launch)
 - **launch-ghost-browser.ps1** - 🎯 **LAUNCHER SCRIPT** (Easy Selection)
 
@@ -316,8 +316,8 @@ wails build -o ghost-browser-fixed.exe
 .\launch-ghost-browser.ps1
 
 # Or run directly:
-.\build\bin\ghost-browser-desktop-ultimate.exe  # Native Desktop GUI (Recommended)
-.\ghost-browser-api-ultimate.exe       # API Server at http://localhost:8080
+.\build\bin\GhostBrowser-v1.0.1.exe  # Native Desktop GUI (Recommended)
+.\GhostBrowser-API-v1.0.1.exe         # API Server at http://localhost:8080
 .\ghost-browser-v4-standalone.exe      # Direct browser with random fingerprint
 ```
 
